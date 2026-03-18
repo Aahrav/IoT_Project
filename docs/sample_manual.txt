@@ -1,0 +1,37 @@
+Device: Industrial Motor Controller (IMC-100)
+
+Safety
+- Disconnect power before opening enclosures.
+- If temperature exceeds 80°C, stop the device and inspect ventilation.
+
+Common failure modes and symptoms
+1) Bearing wear / misalignment
+   - Symptom: increasing vibration RMS, especially persistent over multiple hours.
+   - Checks:
+     - Inspect shaft alignment
+     - Check bearing lubrication
+     - Listen for abnormal noise under load
+   - Recommended actions:
+     - Re-lubricate bearings if dry
+     - Replace bearings if vibration continues after lubrication
+
+2) Overheating / cooling obstruction
+   - Symptom: rising temperature trend, thermal spikes, or temperature persistently above 75°C.
+   - Checks:
+     - Inspect cooling fan operation
+     - Clean vents and filters
+     - Verify ambient temperature and airflow
+   - Recommended actions:
+     - Clear obstructions and replace clogged filters
+     - Validate fan RPM and power supply
+
+3) Electrical overcurrent
+   - Symptom: current draw increases unexpectedly; may correlate with mechanical drag.
+   - Checks:
+     - Inspect wiring, terminals, and insulation
+     - Verify load conditions
+     - Check for jammed mechanical components
+   - Recommended actions:
+     - Reduce load and retest
+     - Replace damaged wiring
+
