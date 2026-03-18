@@ -8,7 +8,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import RobustScaler
 
 
-FEATURE_COLS = ["temperature_c", "vibration_rms", "current_a"]
+DEFAULT_FEATURE_COLS = ["temperature_c", "vibration_rms", "current_a"]
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class AnomalyConfig:
     random_state: int = 7
 
 
-def fit_score_isolation_forest(df: pd.DataFrame, cfg: AnomalyConfig) -> pd.DataFrame:
+def fit_score_isolation_forest(df: pd.DataFrame, cfg: AnomalyConfig, *, feature_cols: list[str] | None = None) -> pd.DataFrame:
     """
     Returns df with:
       - anomaly_score (higher = more anomalous)
@@ -30,7 +30,8 @@ def fit_score_isolation_forest(df: pd.DataFrame, cfg: AnomalyConfig) -> pd.DataF
     """
     work = df.copy()
 
-    X = work[FEATURE_COLS].to_numpy(dtype=float)
+    feature_cols = feature_cols or DEFAULT_FEATURE_COLS
+    X = work[feature_cols].to_numpy(dtype=float)
     scaler = RobustScaler()
     Xs = scaler.fit_transform(X)
 
@@ -62,7 +63,7 @@ def fit_score_isolation_forest(df: pd.DataFrame, cfg: AnomalyConfig) -> pd.DataF
 
     work["anomaly_score"] = anomaly_score
     work["anomaly_flag"] = anomaly_flag
-    for i, c in enumerate(FEATURE_COLS):
+    for i, c in enumerate(feature_cols):
         work[f"contrib_{c}"] = contrib[:, i]
 
     return work

@@ -42,9 +42,26 @@ streamlit run app.py
 ### 5) What to do in the UI
 
 - Go to **Data** and generate sample telemetry
+- Or choose **NASA C-MAPSS** and upload the dataset files
 - Go to **Docs** and upload a PDF/manual or text tickets (or use provided samples)
 - Click **Build/Refresh Index**
 - Pick a device + anomaly event and click **Generate Work Order**
+
+### Using NASA C-MAPSS (real dataset)
+
+1. Download the C-MAPSS dataset (splits like FD001..FD004).
+2. Put the following files into `data/cmapss/` (or upload in the app):
+
+- `train_FD001.txt`
+- `test_FD001.txt`
+- `RUL_FD001.txt`
+
+You can also use FD002/FD003/FD004 similarly.
+
+In the app:
+- Data tab → Source: **NASA C-MAPSS**
+- Choose split (FD001...) and whether to use train/test/all
+- Pick which sensors (`s1..s21`) to use for anomaly scoring/plots
 
 ### Notes
 
