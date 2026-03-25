@@ -12,6 +12,7 @@ from src.anomaly import AnomalyConfig, DEFAULT_FEATURE_COLS, fit_score_isolation
 from src.cmapss import detect_splits, load_split_all
 from src.config import get_paths
 from src.data_simulator import SimConfig, generate_telemetry
+from src.db import load_telemetry
 from src.llm import LlmError, generate_with_ollama, generate_with_openrouter
 from src.rag import DEFAULT_EMBED_MODEL, build_index, format_citations, load_docs_from_dir, load_index, retrieve, save_index
 
@@ -197,15 +198,15 @@ with st.sidebar:
         "- Generate a work order with citations"
     )
 
-tab_data, tab_docs, tab_dashboard = st.tabs(["📈 Data", "📚 Docs", "🧠 Dashboard"])
+tab_data, tab_docs, tab_dashboard, tab_fog, tab_ota = st.tabs(["📈 Data", "📚 Docs", "🧠 Dashboard", "☁️ Edge/Fog Alerts", "📡 OTA Updates"])
 
 with tab_data:
     st.markdown("### Telemetry dataset")
     dataset = st.segmented_control(
         "Source",
-        options=["Simulated", "NASA C-MAPSS"],
-        default="Simulated",
-        help="Choose simulated data or load NASA C-MAPSS (turbofan) dataset files.",
+        options=["Live MQTT (SQLite)", "Simulated", "NASA C-MAPSS"],
+        default="Live MQTT (SQLite)",
+        help="Choose Live MQTT (running in background), simulated data, or load NASA C-MAPSS files.",
     )
 
     if "dataset_source" not in st.session_state:
@@ -213,7 +214,19 @@ with tab_data:
     else:
         st.session_state.dataset_source = dataset
 
-    if dataset == "Simulated":
+    if dataset == "Live MQTT (SQLite)":
+        st.write("Reading latest telemetry from SQLite DB populated by the MQTT ingestor...")
+        df = load_telemetry()
+        if df.empty:
+            st.warning("No data in SQLite telemetry.db. Make sure `mqtt_simulator.py` and `mqtt_ingest.py` are running!")
+            st.stop()
+        feature_cols = ["temperature_c", "vibration_rms", "current_a"]
+        source_label = "telemetry.db"
+        
+        if st.button("Refresh Live Data"):
+            st.rerun()
+
+    elif dataset == "Simulated":
         colA, colB = st.columns([1, 1])
         with colA:
             if st.button("Generate fresh sample telemetry"):
@@ -225,7 +238,8 @@ with tab_data:
         df = _load_simulated_or_make()
         feature_cols = DEFAULT_FEATURE_COLS
         source_label = "data/telemetry.csv"
-    else:
+        
+    elif dataset == "NASA C-MAPSS":
         cmapss_dir = paths.data_dir / "cmapss"
         cmapss_dir.mkdir(parents=True, exist_ok=True)
         st.caption("Upload `train_FD00x.txt`, `test_FD00x.txt`, and `RUL_FD00x.txt` into `data/cmapss/` (or upload below).")
@@ -494,4 +508,64 @@ with tab_dashboard:
 
         with st.expander("Show prompt (for debugging)"):
             st.code(prompt)
+
+with tab_fog:
+    st.markdown("### Edge / Fog Alerts")
+    st.write("This tab displays anomalies that were detected locally by the **Edge Agent** and forwarded/enriched by the **Fog Gateway**.")
+    
+    try:
+        import json
+        with open("data/fog_alerts.jsonl", "r") as f:
+            lines = f.readlines()
+            alerts = [json.loads(l) for l in lines]
+    except FileNotFoundError:
+        alerts = []
+        
+    if alerts:
+        alerts_df = pd.DataFrame(alerts)
+        if "raw_payload" in alerts_df.columns:
+            alerts_df = alerts_df.drop(columns=["raw_payload"])
+        st.dataframe(alerts_df.sort_values(by="fog_timestamp", ascending=False), use_container_width=True)
+    else:
+        st.info("No alerts found. Run `src/edge_agent.py` and `fog_app.py` to populate data here.")
+
+with tab_ota:
+    st.markdown("### Over-The-Air (OTA) Updates")
+    st.write("Simulate pushing a new configuration/firmware update to an edge device to dynamically change its local anomaly detection thresholds.")
+    
+    st.markdown("#### Push Configuration")
+    target_device = st.selectbox("Target Device", ["device-01", "device-02", "device-03", "device-04", "device-05", "all"])
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        new_temp_threshold = st.number_input("New Temperature Threshold (°C)", value=60.0)
+    with col2:
+        new_vib_threshold = st.number_input("New Vibration Threshold (RMS)", value=1.8)
+        
+    if st.button("Deploy OTA Update"):
+        import paho.mqtt.client as mqtt
+        import hashlib
+        import uuid
+        
+        # Simple fire-and-forget publisher
+        pub_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        try:
+            pub_client.connect("localhost", 1883, 60)
+            
+            payload = {
+                "version": f"1.0.{str(uuid.uuid4())[:4]}",
+                "temperature_c": new_temp_threshold,
+                "vibration_rms": new_vib_threshold,
+                "hash": hashlib.sha256(str(new_temp_threshold).encode()).hexdigest()
+            }
+            
+            topics = [f"factory/{target_device}/cmd/firmware"] if target_device != "all" else [f"factory/device-0{i}/cmd/firmware" for i in range(1, 6)]
+            for topic in topics:
+                pub_client.publish(topic, json.dumps(payload))
+                
+            pub_client.disconnect()
+            st.success(f"Successfully pushed OTA update to {target_device}!")
+            st.json(payload)
+        except Exception as e:
+            st.error(f"Failed to publish to MQTT broker: {e}")
 
